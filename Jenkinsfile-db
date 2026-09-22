@@ -16,7 +16,7 @@ pipeline {
 
         // Jenkins credential ID containing AWS Access Key/Secret Key
         AWS_CREDENTIALS = 'aws-credentials'
-    
+        BUILD_CONTEXT = ./db/Dockerfile
 
         // Amazon ECR Jenkins plugin credential format:
         // ecr:<region>:<AWS credential ID>
@@ -65,10 +65,7 @@ pipeline {
 
         // Container name inside each ECS task definition
         CONTAINER_NAME = 'mysql'
-        BUILD_CONTEXT = 'APP-1/nginx-flask-mysql/db'
     }
-
-
 
     parameters {
         choice(
@@ -169,11 +166,11 @@ pipeline {
                     def imageName = "${env.ECR_REGISTRY}/${env.DEV_ECR_REPO}"
 
                     databaseImage = docker.build(
-                        "${imageName}:${env.BUILD_NUMBER}",
+                        "${imageName}:${env.GIT_COMMIT}",
                         "-f ${env.BUILD_CONTEXT}/Dockerfile ${env.BUILD_CONTEXT}"
                     )
 
-                    echo "DB image built: ${imageName}:${env.BUILD_NUMBER}"
+                    echo "DB image built: ${imageName}:${env.GIT_COMMIT}"
                 }
             }
         }
@@ -195,11 +192,11 @@ pipeline {
                         env.ECR_CREDENTIALS
                     ) {
                         databaseImage.push(
-                            "${env.BUILD_NUMBER}"
+                            "${env.GIT_COMMIT}"
                         )
                     }
 
-                    echo "DEV ECR image pushed: ${env.ECR_REGISTRY}/${env.DEV_ECR_REPO}:${env.BUILD_NUMBER}"
+                    echo "DEV ECR image pushed: ${env.ECR_REGISTRY}/${env.DEV_ECR_REPO}:${env.GIT_COMMIT}"
                 }
             }
         }
