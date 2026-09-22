@@ -1,0 +1,624 @@
+pipeline {
+
+    agent any
+
+    environment {
+
+        // =====================================================
+        // AWS / ECR
+        // =====================================================
+
+        AWS_REGION = 'ap-south-1'
+        AWS_ACCOUNT_ID = '552940445807'
+
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REGISTRY_URL = "https://${ECR_REGISTRY}"
+
+        // Jenkins credential ID containing AWS Access Key/Secret Key
+        AWS_CREDENTIALS = 'aws-credentials'
+
+        // Amazon ECR Jenkins plugin credential format:
+        // ecr:<region>:<AWS credential ID>
+        ECR_CREDENTIALS = "ecr:${AWS_REGION}:${AWS_CREDENTIALS}"
+
+        // =====================================================
+        // ECR REPOSITORIES
+        // =====================================================
+
+        DEV_ECR_REPO   = 'jenkins-db-dev'
+        QA_ECR_REPO    = 'jenkins-db-qa'
+        STAGE_ECR_REPO = 'jenkins-db-uat'
+        PROD_ECR_REPO  = 'jenkins-db-prod'
+
+        // =====================================================
+        // ECS CLUSTERS
+        // =====================================================
+
+        DEV_ECS_CLUSTER   = 'employee-dev-cluster'
+        QA_ECS_CLUSTER    = 'employee-qa-cluster'
+        STAGE_ECS_CLUSTER = 'employee-uat-cluster'
+        PROD_ECS_CLUSTER  = 'employee-prod-cluster'
+
+        // =====================================================
+        // ECS SERVICES
+        // =====================================================
+
+        DEV_ECS_SERVICE   = 'employee-db-dev-service'
+        QA_ECS_SERVICE    = 'employee-db-qa-service'
+        STAGE_ECS_SERVICE = 'employee-db-uat-service'
+        PROD_ECS_SERVICE  = 'employee-db-prod-service'
+
+        // =====================================================
+        // ECS TASK DEFINITION FAMILIES
+        // =====================================================
+
+        DEV_TASK_FAMILY   = 'employee-db-dev-task'
+        QA_TASK_FAMILY    = 'employee-db-qa-task'
+        STAGE_TASK_FAMILY = 'employee-db-uat-task'
+        PROD_TASK_FAMILY  = 'employee-db-prod-task'
+
+        // Container name inside each ECS task definition
+        CONTAINER_NAME = 'mysql'
+    }
+    parameters{
+        choice{
+            name: 'Environment',
+            choices: ['dev', 'qa', 'uat', 'prod'],
+            description: 'select the Environment'
+        }
+    }
+    stages {
+
+        // =====================================================
+        // CHECKOUT
+        // =====================================================
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+
+                script {
+                    env.COMMIT_ID = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "COMMIT ID: ${env.COMMIT_ID}"
+                    echo "BUILD NUMBER: ${env.BUILD_NUMBER}"
+                }
+            }
+        }
+
+        // =====================================================
+        // CHECK AWS CONNECTION
+        // =====================================================
+
+        stage('Check AWS Connection') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: env.AWS_CREDENTIALS]
+                ]) {
+                    sh '''
+                        set -e
+
+                        echo "Checking AWS identity..."
+                        aws sts get-caller-identity
+
+                        echo "Checking AWS region..."
+                        echo "${AWS_REGION}"
+                    '''
+                }
+            }
+        }
+
+        // =====================================================
+        // ENSURE ECR REPOSITORIES
+        // =====================================================
+
+        stage('Ensure ECR Repositories') {
+            steps {
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: env.AWS_CREDENTIALS]
+                ]) {
+                    sh '''
+                        set -e
+
+                        for REPO in \
+                            "${DEV_ECR_REPO}" \
+                            "${QA_ECR_REPO}" \
+                            "${STAGE_ECR_REPO}" \
+                            "${PROD_ECR_REPO}"
+                        do
+                            aws ecr describe-repositories \
+                                --repository-names "${REPO}" \
+                                --region "${AWS_REGION}" >/dev/null 2>&1 || \
+                            aws ecr create-repository \
+                                --repository-name "${REPO}" \
+                                --region "${AWS_REGION}"
+                        done
+                    '''
+                }
+            }
+        }
+
+        // =====================================================
+        // BUILD DB IMAGE
+        // =====================================================
+
+        stage('Build DB Image') {
+            when {
+                expression {
+                    params.Environment == 'dev'
+            }
+}
+            steps {
+                script {
+                    def imageName = "${env.ECR_REGISTRY}/${env.DEV_ECR_REPO}"
+
+                    databaseImage = docker.build(
+                        "${imageName}:${env.BUILD_NUMBER}",
+                        '-f APP-1/nginx-flask-mysql/db/Dockerfile APP-1/nginx-flask-mysql/db/'
+                    )
+
+                    echo "DB image built: ${imageName}:${env.BUILD_NUMBER}"
+                }
+            }
+        }
+
+        // =====================================================
+        // PUSH DB IMAGE TO ECR - DEV
+        // =====================================================
+
+        stage('Push DB Image to ECR - DEV') {
+            when {
+                expression {
+                     params.Environment == 'dev'
+            }
+}
+            steps {
+                script {
+                    docker.withRegistry(
+                        env.ECR_REGISTRY_URL,
+                        env.ECR_CREDENTIALS
+                    ) {
+                        databaseImage.push(
+                            "${env.BUILD_NUMBER}"
+                        )
+                    }
+
+                    echo "DEV ECR image pushed: ${env.ECR_REGISTRY}/${env.DEV_ECR_REPO}:${env.BUILD_NUMBER}"
+                }
+            }
+        }
+
+        // =====================================================
+        // DEPLOY DEV
+        // =====================================================
+
+        stage('Deploy ECS - DEV') {
+            when {
+               expression {
+                  params.Environment == 'dev'
+            }
+}
+            steps {
+                script {
+                    def image = "${env.ECR_REGISTRY}/${env.DEV_ECR_REPO}:${env.BUILD_NUMBER}"
+
+                    deployECS(
+                        image,
+                        env.DEV_ECS_CLUSTER,
+                        env.DEV_ECS_SERVICE,
+                        env.DEV_TASK_FAMILY,
+                        env.CONTAINER_NAME
+                    )
+                }
+            }
+        }
+
+        // =====================================================
+        // PROMOTE DEV -> QA
+        // =====================================================
+
+        stage('Promote DEV -> QA') {
+            when {
+                expression {
+                    params.Environment == 'qa'
+    }
+}
+            steps {
+                script {
+                    promoteECRImage(
+                        env.DEV_ECR_REPO,
+                        env.QA_ECR_REPO,
+                        env.BUILD_NUMBER
+                    )
+                }
+            }
+        }
+
+        // =====================================================
+        // DEPLOY QA
+        // =====================================================
+
+        stage('Deploy ECS - QA') {
+            when {
+               expression {
+                     params.Environment in ['qa', 'uat', 'prod']
+            }
+}
+            steps {
+                script {
+                    def image = "${env.ECR_REGISTRY}/${env.QA_ECR_REPO}:${env.BUILD_NUMBER}"
+
+                    deployECS(
+                        image,
+                        env.QA_ECS_CLUSTER,
+                        env.QA_ECS_SERVICE,
+                        env.QA_TASK_FAMILY,
+                        env.CONTAINER_NAME
+                    )
+                }
+            }
+        }
+
+        // =====================================================
+        // PROMOTE QA -> UAT
+        // =====================================================
+
+        stage('Promote QA -> UAT') {
+            when {
+                expression {
+                    params.Environment == 'uat'
+            }
+}
+            steps {
+                script {
+                    promoteECRImage(
+                        env.QA_ECR_REPO,
+                        env.STAGE_ECR_REPO,
+                        env.BUILD_NUMBER
+                    )
+                }
+            }
+        }
+
+        // =====================================================
+        // DEPLOY UAT
+        // =====================================================
+
+        stage('Deploy ECS - UAT') {
+            when {
+               expression {
+                   params.Environment in ['uat', 'prod']
+            }
+}
+            steps {
+                script {
+                    def image = "${env.ECR_REGISTRY}/${env.STAGE_ECR_REPO}:${env.BUILD_NUMBER}"
+
+                    deployECS(
+                        image,
+                        env.STAGE_ECS_CLUSTER,
+                        env.STAGE_ECS_SERVICE,
+                        env.STAGE_TASK_FAMILY,
+                        env.CONTAINER_NAME
+                    )
+                }
+            }
+        }
+
+        // =====================================================
+        // PRODUCTION APPROVAL
+        // =====================================================
+
+        stage('Production Approval') {
+            when {
+                expression {
+                    params.Environment == 'prod'
+    }
+}
+            steps {
+                input(
+                    message: "Deploy DB build ${env.BUILD_NUMBER} (${env.COMMIT_ID}) to PROD?",
+                    ok: 'Deploy DB to PROD'
+                )
+            }
+        }
+
+        // =====================================================
+        // PROMOTE UAT -> PROD
+        // =====================================================
+
+        stage('Promote UAT -> PROD') {
+            when {
+                expression {
+                    params.Environment == 'prod'
+    }
+}
+            steps {
+                script {
+                    promoteECRImage(
+                        env.STAGE_ECR_REPO,
+                        env.PROD_ECR_REPO,
+                        env.BUILD_NUMBER
+                    )
+                }
+            }
+        }
+
+        // =====================================================
+        // DEPLOY PROD
+        // =====================================================
+
+        stage('Deploy ECS - PROD') {
+            when {
+                expression {
+                    params.Environment == 'prod'
+            }
+}
+            steps {
+                script {
+                    def image = "${env.ECR_REGISTRY}/${env.PROD_ECR_REPO}:${env.BUILD_NUMBER}"
+
+                    deployECS(
+                        image,
+                        env.PROD_ECS_CLUSTER,
+                        env.PROD_ECS_SERVICE,
+                        env.PROD_TASK_FAMILY,
+                        env.CONTAINER_NAME
+                    )
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Cleaning Jenkins workspace...'
+            cleanWs()
+        }
+
+        success {
+            echo '======================================'
+            echo 'ECS / ECR DEPLOYMENT SUCCESSFUL'
+            echo "BUILD: ${env.BUILD_NUMBER}"
+            echo "COMMIT: ${env.COMMIT_ID}"
+            echo '======================================'
+        }
+
+        failure {
+            echo '======================================'
+            echo 'ECS / ECR DEPLOYMENT FAILED'
+            echo "BUILD: ${env.BUILD_NUMBER}"
+            echo "COMMIT: ${env.COMMIT_ID}"
+            echo '======================================'
+        }
+    }
+}
+
+
+// ==========================================================
+// ECS DEPLOYMENT FUNCTION
+// ==========================================================
+
+def deployECS(
+    String image,
+    String cluster,
+    String service,
+    String taskFamily,
+    String containerName
+) {
+
+    echo '======================================'
+    echo 'DEPLOYING APPLICATION TO ECS'
+    echo '======================================'
+    echo "Cluster       : ${cluster}"
+    echo "Service       : ${service}"
+    echo "Task Family   : ${taskFamily}"
+    echo "Container     : ${containerName}"
+    echo "Image         : ${image}"
+    echo '======================================'
+
+    withCredentials([
+        [$class: 'AmazonWebServicesCredentialsBinding',
+         credentialsId: env.AWS_CREDENTIALS]
+    ]) {
+
+        // --------------------------------------------------
+        // GET CURRENT TASK DEFINITION
+        // --------------------------------------------------
+
+        sh """
+            set -e
+
+            aws ecs describe-task-definition \\
+                --task-definition ${taskFamily} \\
+                --region ${AWS_REGION} \\
+                --query 'taskDefinition' \\
+                --output json > current-task-definition.json
+        """
+
+        // --------------------------------------------------
+        // UPDATE ONLY THE APPLICATION IMAGE
+        // --------------------------------------------------
+
+        sh """
+            set -e
+
+            jq \\
+                --arg IMAGE '${image}' \\
+                --arg CONTAINER '${containerName}' \\
+                '
+                    .containerDefinitions |= map(
+                        if .name == \$CONTAINER
+                        then .image = \$IMAGE
+                        else .
+                        end
+                    )
+                    |
+                    del(
+                        .taskDefinitionArn,
+                        .revision,
+                        .status,
+                        .requiresAttributes,
+                        .compatibilities,
+                        .registeredAt,
+                        .registeredBy
+                    )
+                ' \\
+                current-task-definition.json \\
+                > new-task-definition.json
+        """
+
+        // --------------------------------------------------
+        // REGISTER NEW TASK DEFINITION REVISION
+        // --------------------------------------------------
+
+        sh """
+            set -e
+
+            aws ecs register-task-definition \\
+                --cli-input-json file://new-task-definition.json \\
+                --region ${AWS_REGION}
+        """
+
+        // --------------------------------------------------
+        // GET NEW REVISION
+        // --------------------------------------------------
+
+        def newRevision = sh(
+            script: """
+                aws ecs describe-task-definition \\
+                    --task-definition ${taskFamily} \\
+                    --region ${AWS_REGION} \\
+                    --query 'taskDefinition.revision' \\
+                    --output text
+            """,
+            returnStdout: true
+        ).trim()
+
+        echo "New task definition revision: ${taskFamily}:${newRevision}"
+
+        // --------------------------------------------------
+        // UPDATE ECS SERVICE
+        // --------------------------------------------------
+
+        sh """
+            set -e
+
+            aws ecs update-service \\
+                --cluster ${cluster} \\
+                --service ${service} \\
+                --task-definition ${taskFamily}:${newRevision} \\
+                --region ${AWS_REGION}
+        """
+
+        // --------------------------------------------------
+        // WAIT FOR STABLE SERVICE
+        // --------------------------------------------------
+
+        sh """
+            set -e
+
+            echo 'Waiting for ECS deployment to become stable...'
+
+            aws ecs wait services-stable \\
+                --cluster ${cluster} \\
+                --services ${service} \\
+                --region ${AWS_REGION}
+        """
+
+        // --------------------------------------------------
+        // VERIFY ECS SERVICE
+        // --------------------------------------------------
+
+        sh """
+            set -e
+
+            echo '===== ECS SERVICE STATUS ====='
+
+            aws ecs describe-services \\
+                --cluster ${cluster} \\
+                --services ${service} \\
+                --region ${AWS_REGION} \\
+                --query 'services[0].{Status:status,Running:runningCount,Desired:desiredCount,TaskDefinition:taskDefinition}' \\
+                --output table
+        """
+    }
+
+    echo '======================================'
+    echo 'ECS DEPLOYMENT COMPLETED'
+    echo '======================================'
+}
+
+
+// ==========================================================
+// ECR IMAGE PROMOTION FUNCTION
+// ==========================================================
+
+def promoteECRImage(
+    String sourceRepository,
+    String targetRepository,
+    String imageTag
+) {
+
+    def sourceImage = "${env.ECR_REGISTRY}/${sourceRepository}:${imageTag}"
+    def targetImage = "${env.ECR_REGISTRY}/${targetRepository}:${imageTag}"
+
+    echo '======================================'
+    echo 'ECR IMAGE PROMOTION'
+    echo '======================================'
+    echo "Source : ${sourceImage}"
+    echo "Target : ${targetImage}"
+    echo '======================================'
+
+    // ------------------------------------------------------
+    // PULL SOURCE IMAGE FROM ECR
+    // ------------------------------------------------------
+
+    docker.withRegistry(
+        env.ECR_REGISTRY_URL,
+        env.ECR_CREDENTIALS
+    ) {
+        docker.image(sourceImage).pull()
+    }
+
+    // ------------------------------------------------------
+    // RETAG IMAGE FOR TARGET ECR REPOSITORY
+    // ------------------------------------------------------
+
+    sh """
+        set -e
+
+        docker tag \\
+            ${sourceImage} \\
+            ${targetImage}
+    """
+
+    // ------------------------------------------------------
+    // PUSH TARGET IMAGE TO ECR
+    // ------------------------------------------------------
+
+    docker.withRegistry(
+        env.ECR_REGISTRY_URL,
+        env.ECR_CREDENTIALS
+    ) {
+        docker.image(targetImage).push()
+    }
+
+    // ------------------------------------------------------
+    // CLEAN LOCAL IMAGES
+    // ------------------------------------------------------
+
+    sh """
+        docker rmi ${sourceImage} || true
+        docker rmi ${targetImage} || true
+    """
+
+    echo '======================================'
+    echo 'ECR IMAGE PROMOTION COMPLETED'
+    echo '======================================'
+}
