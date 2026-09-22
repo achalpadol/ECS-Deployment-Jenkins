@@ -66,6 +66,7 @@ pipeline {
         // Container name inside each ECS task definition
         CONTAINER_NAME = 'mysql'
     }
+    BUILD_CONTEXT= APP-1/nginx-flask-mysql/db/Dockerfile
     parameters {
         choice(
             name: 'Environment',
@@ -166,7 +167,7 @@ pipeline {
 
                     databaseImage = docker.build(
                         "${imageName}:${env.BUILD_NUMBER}",
-                        '-f APP-1/nginx-flask-mysql/db/Dockerfile'
+                        "-f ${env.BUILD_CONTEXT}/Dockerfile ${env.BUILD_CONTEXT}"
                     )
 
                     echo "DB image built: ${imageName}:${env.BUILD_NUMBER}"
