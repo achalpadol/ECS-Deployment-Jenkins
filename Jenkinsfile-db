@@ -65,8 +65,11 @@ pipeline {
 
         // Container name inside each ECS task definition
         CONTAINER_NAME = 'mysql'
+        BUILD_CONTEXT = 'APP-1/nginx-flask-mysql/db'
     }
-    BUILD_CONTEXT= APP-1/nginx-flask-mysql/db/Dockerfile
+
+
+
     parameters {
         choice(
             name: 'Environment',
