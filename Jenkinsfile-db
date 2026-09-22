@@ -60,13 +60,14 @@ pipeline {
         // Container name inside each ECS task definition
         CONTAINER_NAME = 'mysql'
     }
-    parameters{
-        choice{
+    parameters {
+        choice(
             name: 'Environment',
             choices: ['dev', 'qa', 'uat', 'prod'],
-            description: 'select the Environment'
-        }
+            description: 'Select the Environment'
+        )
     }
+
     stages {
 
         // =====================================================
