@@ -21,6 +21,11 @@ pipeline {
         // ecr:<region>:<AWS credential ID>
         ECR_CREDENTIALS = "ecr:${AWS_REGION}:${AWS_CREDENTIALS}"
 
+        DB_IMAGE_DEV  = 'employee-management-db-dev'
+        DB_IMAGE_QA   = 'employee-management-db-qa'
+        DB_IMAGE_UAT  = 'employee-management-db-uat'
+        DB_IMAGE_PROD = 'employee-management-db-prod'
+
         // =====================================================
         // ECR REPOSITORIES
         // =====================================================
@@ -623,3 +628,4 @@ def promoteECRImage(
     echo 'ECR IMAGE PROMOTION COMPLETED'
     echo '======================================'
 }
+
