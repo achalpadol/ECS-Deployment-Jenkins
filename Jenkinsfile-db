@@ -16,6 +16,7 @@ pipeline {
 
         // Jenkins credential ID containing AWS Access Key/Secret Key
         AWS_CREDENTIALS = 'aws-credentials'
+        BUILD_CONTEXT= APP-1/nginx-flask-mysql/db/Dockerfile
 
         // Amazon ECR Jenkins plugin credential format:
         // ecr:<region>:<AWS credential ID>
@@ -165,7 +166,7 @@ pipeline {
 
                     databaseImage = docker.build(
                         "${imageName}:${env.BUILD_NUMBER}",
-                        '-f APP-1/nginx-flask-mysql/db/Dockerfile APP-1/nginx-flask-mysql/db/'
+                        '-f APP-1/nginx-flask-mysql/db/Dockerfile'
                     )
 
                     echo "DB image built: ${imageName}:${env.BUILD_NUMBER}"
