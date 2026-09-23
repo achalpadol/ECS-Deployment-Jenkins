@@ -4,632 +4,248 @@ pipeline {
 
     environment {
 
-        // =====================================================
-        // AWS / ECR
-        // =====================================================
-
         AWS_REGION = 'ap-south-1'
-        AWS_ACCOUNT_ID = '552940445807'
+
+        AWS_ACCOUNT_ID = credentials('aws-account-id')
 
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        ECR_REGISTRY_URL = "https://${ECR_REGISTRY}"
 
-        // Jenkins credential ID containing AWS Access Key/Secret Key
+        ECR_REGISTRY_URL = "https://${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+
+        // =========================================================
+        // Database images
+        // =========================================================
+
+        DATABASE_IMAGE_DEV  = 'app-2-db-dev'
+        DATABASE_IMAGE_QA   = 'app-2-db-qa'
+        DATABASE_IMAGE_UAT  = 'app-2-db-uat'
+        DATABASE_IMAGE_PROD = 'app-2-db-prod'
+
+
+        // AWS credentials
         AWS_CREDENTIALS = 'aws-credentials'
-        DB_DOCKERFILE = 'db/Dockerfile'
+
+
+        // Database Docker build context
         BUILD_CONTEXT = './db'
-
-        // Amazon ECR Jenkins plugin credential format:
-        // ecr:<region>:<AWS credential ID>
-        ECR_CREDENTIALS = "ecr:${AWS_REGION}:${AWS_CREDENTIALS}"
-
-        DB_IMAGE_DEV  = 'employee-management-db-dev'
-        DB_IMAGE_QA   = 'employee-management-db-qa'
-        DB_IMAGE_UAT  = 'employee-management-db-uat'
-        DB_IMAGE_PROD = 'employee-management-db-prod'
-
-        // =====================================================
-        // ECR REPOSITORIES
-        // =====================================================
-
-        DEV_ECR_REPO   = 'jenkins-db-dev'
-        QA_ECR_REPO    = 'jenkins-db-qa'
-        STAGE_ECR_REPO = 'jenkins-db-uat'
-        PROD_ECR_REPO  = 'jenkins-db-prod'
-
-        // =====================================================
-        // ECS CLUSTERS
-        // =====================================================
-
-        DEV_ECS_CLUSTER   = 'employee-dev-cluster'
-        QA_ECS_CLUSTER    = 'employee-qa-cluster'
-        STAGE_ECS_CLUSTER = 'employee-uat-cluster'
-        PROD_ECS_CLUSTER  = 'employee-prod-cluster'
-
-        // =====================================================
-        // ECS SERVICES
-        // =====================================================
-
-        DEV_ECS_SERVICE   = 'employee-db-dev-service'
-        QA_ECS_SERVICE    = 'employee-db-qa-service'
-        STAGE_ECS_SERVICE = 'employee-db-uat-service'
-        PROD_ECS_SERVICE  = 'employee-db-prod-service'
-
-        // =====================================================
-        // ECS TASK DEFINITION FAMILIES
-        // =====================================================
-
-        DEV_TASK_FAMILY   = 'employee-db-dev-task'
-        QA_TASK_FAMILY    = 'employee-db-qa-task'
-        STAGE_TASK_FAMILY = 'employee-db-uat-task'
-        PROD_TASK_FAMILY  = 'employee-db-prod-task'
-
-        // Container name inside each ECS task definition
-        CONTAINER_NAME = 'mysql'
     }
 
+
     parameters {
+
         choice(
             name: 'Environment',
             choices: ['dev', 'qa', 'uat', 'prod'],
-            description: 'Select the Environment'
+            description: 'Select the deployment environment'
         )
     }
 
+
     stages {
 
-        // =====================================================
-        // CHECKOUT
-        // =====================================================
+        // =========================================================
+        // DEV
+        // =========================================================
 
-        stage('Checkout') {
-            steps {
-                checkout scm
+        stage('Dev - Build & Push Database') {
 
-                script {
-                    env.COMMIT_ID = sh(
-                        script: 'git rev-parse --short HEAD',
-                        returnStdout: true
-                    ).trim()
-
-                    echo "COMMIT ID: ${env.COMMIT_ID}"
-                    echo "BUILD NUMBER: ${env.BUILD_NUMBER}"
-                }
-            }
-        }
-
-        // =====================================================
-        // CHECK AWS CONNECTION
-        // =====================================================
-
-        stage('Check AWS Connection') {
-            steps {
-                withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding',
-                     credentialsId: env.AWS_CREDENTIALS]
-                ]) {
-                    sh '''
-                        set -e
-
-                        echo "Checking AWS identity..."
-                        aws sts get-caller-identity
-
-                        echo "Checking AWS region..."
-                        echo "${AWS_REGION}"
-                    '''
-                }
-            }
-        }
-
-        // =====================================================
-        // ENSURE ECR REPOSITORIES
-        // =====================================================
-
-        stage('Ensure ECR Repositories') {
-            steps {
-                withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding',
-                     credentialsId: env.AWS_CREDENTIALS]
-                ]) {
-                    sh '''
-                        set -e
-
-                        for REPO in \
-                            "${DEV_ECR_REPO}" \
-                            "${QA_ECR_REPO}" \
-                            "${STAGE_ECR_REPO}" \
-                            "${PROD_ECR_REPO}"
-                        do
-                            aws ecr describe-repositories \
-                                --repository-names "${REPO}" \
-                                --region "${AWS_REGION}" >/dev/null 2>&1 || \
-                            aws ecr create-repository \
-                                --repository-name "${REPO}" \
-                                --region "${AWS_REGION}"
-                        done
-                    '''
-                }
-            }
-        }
-
-        // =====================================================
-        // BUILD DB IMAGE
-        // =====================================================
-
-        stage('Build DB Image') {
             when {
                 expression {
                     params.Environment == 'dev'
-            }
-}
-            steps {
-                script {
-                    def imageName = "${env.ECR_REGISTRY}/${env.DEV_ECR_REPO}"
-
-                    databaseImage = docker.build(
-                        "${imageName}:${env.GIT_COMMIT}",
-                        "-f ${env.DB_DOCKERFILE} ${env.BUILD_CONTEXT}"
-                    )
-            
-
-                    echo "DB image built: ${imageName}:${env.GIT_COMMIT}"
                 }
             }
-        }
 
-        // =====================================================
-        // PUSH DB IMAGE TO ECR - DEV
-        // =====================================================
-
-        stage('Push DB Image to ECR - DEV') {
-            when {
-                expression {
-                     params.Environment == 'dev'
-            }
-}
             steps {
+
                 script {
-                    docker.withRegistry(
-                        env.ECR_REGISTRY_URL,
-                        env.ECR_CREDENTIALS
-                    ) {
-                        databaseImage.push(
-                            "${env.GIT_COMMIT}"
-                        )
-                    }
 
-                    echo "DEV ECR image pushed: ${env.ECR_REGISTRY}/${env.DEV_ECR_REPO}:${env.GIT_COMMIT}"
-                }
-            }
-        }
-
-        // =====================================================
-        // DEPLOY DEV
-        // =====================================================
-
-        stage('Deploy ECS - DEV') {
-            when {
-               expression {
-                  params.Environment == 'dev'
-            }
-}
-            steps {
-                script {
-                    def image = "${env.ECR_REGISTRY}/${env.DEV_ECR_REPO}:${env.BUILD_NUMBER}"
-
-                    deployECS(
-                        image,
-                        env.DEV_ECS_CLUSTER,
-                        env.DEV_ECS_SERVICE,
-                        env.DEV_TASK_FAMILY,
-                        env.CONTAINER_NAME
+                    buildAndPush(
+                        "${env.DATABASE_IMAGE_DEV}",
+                        "${env.BUILD_CONTEXT}"
                     )
                 }
             }
         }
 
-        // =====================================================
-        // PROMOTE DEV -> QA
-        // =====================================================
 
-        stage('Promote DEV -> QA') {
+        // =========================================================
+        // QA
+        // =========================================================
+
+        stage('Promote Database Dev to QA') {
+
             when {
                 expression {
                     params.Environment == 'qa'
-    }
-}
+                }
+            }
+
             steps {
+
                 script {
-                    promoteECRImage(
-                        env.DEV_ECR_REPO,
-                        env.QA_ECR_REPO,
-                        env.BUILD_NUMBER
+
+                    promoteImage(
+                        "${env.DATABASE_IMAGE_DEV}",
+                        "${env.DATABASE_IMAGE_QA}"
                     )
                 }
             }
         }
 
-        // =====================================================
-        // DEPLOY QA
-        // =====================================================
 
-        stage('Deploy ECS - QA') {
-            when {
-               expression {
-                     params.Environment in ['qa', 'uat', 'prod']
-            }
-}
-            steps {
-                script {
-                    def image = "${env.ECR_REGISTRY}/${env.QA_ECR_REPO}:${env.BUILD_NUMBER}"
+        // =========================================================
+        // UAT
+        // =========================================================
 
-                    deployECS(
-                        image,
-                        env.QA_ECS_CLUSTER,
-                        env.QA_ECS_SERVICE,
-                        env.QA_TASK_FAMILY,
-                        env.CONTAINER_NAME
-                    )
-                }
-            }
-        }
+        stage('Promote Database QA to UAT') {
 
-        // =====================================================
-        // PROMOTE QA -> UAT
-        // =====================================================
-
-        stage('Promote QA -> UAT') {
             when {
                 expression {
                     params.Environment == 'uat'
+                }
             }
-}
+
             steps {
+
                 script {
-                    promoteECRImage(
-                        env.QA_ECR_REPO,
-                        env.STAGE_ECR_REPO,
-                        env.BUILD_NUMBER
+
+                    promoteImage(
+                        "${env.DATABASE_IMAGE_QA}",
+                        "${env.DATABASE_IMAGE_UAT}"
                     )
                 }
             }
         }
 
-        // =====================================================
-        // DEPLOY UAT
-        // =====================================================
 
-        stage('Deploy ECS - UAT') {
-            when {
-               expression {
-                   params.Environment in ['uat', 'prod']
-            }
-}
-            steps {
-                script {
-                    def image = "${env.ECR_REGISTRY}/${env.STAGE_ECR_REPO}:${env.BUILD_NUMBER}"
+        // =========================================================
+        // PROD APPROVAL
+        // =========================================================
 
-                    deployECS(
-                        image,
-                        env.STAGE_ECS_CLUSTER,
-                        env.STAGE_ECS_SERVICE,
-                        env.STAGE_TASK_FAMILY,
-                        env.CONTAINER_NAME
-                    )
-                }
-            }
-        }
+        stage('Approval for Database Prod Deployment') {
 
-        // =====================================================
-        // PRODUCTION APPROVAL
-        // =====================================================
-
-        stage('Production Approval') {
             when {
                 expression {
                     params.Environment == 'prod'
-    }
-}
+                }
+            }
+
             steps {
+
                 input(
-                    message: "Deploy DB build ${env.BUILD_NUMBER} (${env.COMMIT_ID}) to PROD?",
-                    ok: 'Deploy DB to PROD'
+                    message: 'Promote Database UAT image to PROD?',
+                    ok: 'Proceed'
                 )
             }
         }
 
-        // =====================================================
-        // PROMOTE UAT -> PROD
-        // =====================================================
 
-        stage('Promote UAT -> PROD') {
+        // =========================================================
+        // PROD
+        // =========================================================
+
+        stage('Promote Database UAT to PROD') {
+
             when {
                 expression {
                     params.Environment == 'prod'
-    }
-}
-            steps {
-                script {
-                    promoteECRImage(
-                        env.STAGE_ECR_REPO,
-                        env.PROD_ECR_REPO,
-                        env.BUILD_NUMBER
-                    )
                 }
             }
-        }
 
-        // =====================================================
-        // DEPLOY PROD
-        // =====================================================
-
-        stage('Deploy ECS - PROD') {
-            when {
-                expression {
-                    params.Environment == 'prod'
-            }
-}
             steps {
-                script {
-                    def image = "${env.ECR_REGISTRY}/${env.PROD_ECR_REPO}:${env.BUILD_NUMBER}"
 
-                    deployECS(
-                        image,
-                        env.PROD_ECS_CLUSTER,
-                        env.PROD_ECS_SERVICE,
-                        env.PROD_TASK_FAMILY,
-                        env.CONTAINER_NAME
+                script {
+
+                    promoteImage(
+                        "${env.DATABASE_IMAGE_UAT}",
+                        "${env.DATABASE_IMAGE_PROD}"
                     )
                 }
             }
         }
     }
+
+
+    // =============================================================
+    // POST
+    // =============================================================
 
     post {
+
         always {
-            echo 'Cleaning Jenkins workspace...'
-            cleanWs()
-        }
 
-        success {
-            echo '======================================'
-            echo 'ECS / ECR DEPLOYMENT SUCCESSFUL'
-            echo "BUILD: ${env.BUILD_NUMBER}"
-            echo "COMMIT: ${env.COMMIT_ID}"
-            echo '======================================'
-        }
-
-        failure {
-            echo '======================================'
-            echo 'ECS / ECR DEPLOYMENT FAILED'
-            echo "BUILD: ${env.BUILD_NUMBER}"
-            echo "COMMIT: ${env.COMMIT_ID}"
-            echo '======================================'
+            deleteDir()
         }
     }
 }
 
 
-// ==========================================================
-// ECS DEPLOYMENT FUNCTION
-// ==========================================================
+// =================================================================
+// FUNCTION 1 - BUILD AND PUSH DATABASE IMAGE
+// =================================================================
 
-def deployECS(
-    String image,
-    String cluster,
-    String service,
-    String taskFamily,
-    String containerName
-) {
+def buildAndPush(String DATABASE_IMAGE, String BUILD_CONTEXT) {
 
-    echo '======================================'
-    echo 'DEPLOYING APPLICATION TO ECS'
-    echo '======================================'
-    echo "Cluster       : ${cluster}"
-    echo "Service       : ${service}"
-    echo "Task Family   : ${taskFamily}"
-    echo "Container     : ${containerName}"
-    echo "Image         : ${image}"
-    echo '======================================'
+    def image = docker.build(
+        "${env.ECR_REGISTRY}/${DATABASE_IMAGE}:${env.GIT_COMMIT}",
+        "${BUILD_CONTEXT}"
+    )
 
-    withCredentials([
-        [$class: 'AmazonWebServicesCredentialsBinding',
-         credentialsId: env.AWS_CREDENTIALS]
-    ]) {
-
-        // --------------------------------------------------
-        // GET CURRENT TASK DEFINITION
-        // --------------------------------------------------
-
-        sh """
-            set -e
-
-            aws ecs describe-task-definition \\
-                --task-definition ${taskFamily} \\
-                --region ${AWS_REGION} \\
-                --query 'taskDefinition' \\
-                --output json > current-task-definition.json
-        """
-
-        // --------------------------------------------------
-        // UPDATE ONLY THE APPLICATION IMAGE
-        // --------------------------------------------------
-
-        sh """
-            set -e
-
-            jq \\
-                --arg IMAGE '${image}' \\
-                --arg CONTAINER '${containerName}' \\
-                '
-                    .containerDefinitions |= map(
-                        if .name == \$CONTAINER
-                        then .image = \$IMAGE
-                        else .
-                        end
-                    )
-                    |
-                    del(
-                        .taskDefinitionArn,
-                        .revision,
-                        .status,
-                        .requiresAttributes,
-                        .compatibilities,
-                        .registeredAt,
-                        .registeredBy
-                    )
-                ' \\
-                current-task-definition.json \\
-                > new-task-definition.json
-        """
-
-        // --------------------------------------------------
-        // REGISTER NEW TASK DEFINITION REVISION
-        // --------------------------------------------------
-
-        sh """
-            set -e
-
-            aws ecs register-task-definition \\
-                --cli-input-json file://new-task-definition.json \\
-                --region ${AWS_REGION}
-        """
-
-        // --------------------------------------------------
-        // GET NEW REVISION
-        // --------------------------------------------------
-
-        def newRevision = sh(
-            script: """
-                aws ecs describe-task-definition \\
-                    --task-definition ${taskFamily} \\
-                    --region ${AWS_REGION} \\
-                    --query 'taskDefinition.revision' \\
-                    --output text
-            """,
-            returnStdout: true
-        ).trim()
-
-        echo "New task definition revision: ${taskFamily}:${newRevision}"
-
-        // --------------------------------------------------
-        // UPDATE ECS SERVICE
-        // --------------------------------------------------
-
-        sh """
-            set -e
-
-            aws ecs update-service \\
-                --cluster ${cluster} \\
-                --service ${service} \\
-                --task-definition ${taskFamily}:${newRevision} \\
-                --region ${AWS_REGION}
-        """
-
-        // --------------------------------------------------
-        // WAIT FOR STABLE SERVICE
-        // --------------------------------------------------
-
-        sh """
-            set -e
-
-            echo 'Waiting for ECS deployment to become stable...'
-
-            aws ecs wait services-stable \\
-                --cluster ${cluster} \\
-                --services ${service} \\
-                --region ${AWS_REGION}
-        """
-
-        // --------------------------------------------------
-        // VERIFY ECS SERVICE
-        // --------------------------------------------------
-
-        sh """
-            set -e
-
-            echo '===== ECS SERVICE STATUS ====='
-
-            aws ecs describe-services \\
-                --cluster ${cluster} \\
-                --services ${service} \\
-                --region ${AWS_REGION} \\
-                --query 'services[0].{Status:status,Running:runningCount,Desired:desiredCount,TaskDefinition:taskDefinition}' \\
-                --output table
-        """
-    }
-
-    echo '======================================'
-    echo 'ECS DEPLOYMENT COMPLETED'
-    echo '======================================'
-}
-
-
-// ==========================================================
-// ECR IMAGE PROMOTION FUNCTION
-// ==========================================================
-
-def promoteECRImage(
-    String sourceRepository,
-    String targetRepository,
-    String imageTag
-) {
-
-    def sourceImage = "${env.ECR_REGISTRY}/${sourceRepository}:${imageTag}"
-    def targetImage = "${env.ECR_REGISTRY}/${targetRepository}:${imageTag}"
-
-    echo '======================================'
-    echo 'ECR IMAGE PROMOTION'
-    echo '======================================'
-    echo "Source : ${sourceImage}"
-    echo "Target : ${targetImage}"
-    echo '======================================'
-
-    // ------------------------------------------------------
-    // PULL SOURCE IMAGE FROM ECR
-    // ------------------------------------------------------
 
     docker.withRegistry(
-        env.ECR_REGISTRY_URL,
-        env.ECR_CREDENTIALS
+        "${env.ECR_REGISTRY_URL}",
+        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
     ) {
-        docker.image(sourceImage).pull()
+
+        image.push()
     }
-
-    // ------------------------------------------------------
-    // RETAG IMAGE FOR TARGET ECR REPOSITORY
-    // ------------------------------------------------------
-
-    sh """
-        set -e
-
-        docker tag \\
-            ${sourceImage} \\
-            ${targetImage}
-    """
-
-    // ------------------------------------------------------
-    // PUSH TARGET IMAGE TO ECR
-    // ------------------------------------------------------
-
-    docker.withRegistry(
-        env.ECR_REGISTRY_URL,
-        env.ECR_CREDENTIALS
-    ) {
-        docker.image(targetImage).push()
-    }
-
-    // ------------------------------------------------------
-    // CLEAN LOCAL IMAGES
-    // ------------------------------------------------------
-
-    sh """
-        docker rmi ${sourceImage} || true
-        docker rmi ${targetImage} || true
-    """
-
-    echo '======================================'
-    echo 'ECR IMAGE PROMOTION COMPLETED'
-    echo '======================================'
 }
 
+
+// =================================================================
+// FUNCTION 2 - PROMOTE DATABASE IMAGE
+// =================================================================
+
+def promoteImage(String sourceImage, String targetImage) {
+
+    // =============================================================
+    // Pull source database image from ECR
+    // =============================================================
+
+    docker.withRegistry(
+        "${env.ECR_REGISTRY_URL}",
+        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
+    ) {
+
+        docker.image(
+            "${env.ECR_REGISTRY}/${sourceImage}:${env.GIT_COMMIT}"
+        ).pull()
+    }
+
+
+    // =============================================================
+    // Tag source image for target environment
+    // =============================================================
+
+    sh """
+        docker tag \
+        ${env.ECR_REGISTRY}/${sourceImage}:${env.GIT_COMMIT} \
+        ${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}
+    """
+
+
+    // =============================================================
+    // Push target database image to ECR
+    // =============================================================
+
+    docker.withRegistry(
+        "${env.ECR_REGISTRY_URL}",
+        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
+    ) {
+
+        docker.image(
+            "${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}"
+        ).push()
+    }
+}
