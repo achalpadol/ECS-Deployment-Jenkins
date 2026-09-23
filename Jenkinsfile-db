@@ -176,74 +176,56 @@ def buildAndPush(String DATABASE_IMAGE, String BUILD_CONTEXT) {
         "-f ${env.DATABASE_DOCKERFILE} ${BUILD_CONTEXT}"
     )
 
-    sh """
-        echo "Logging into Amazon ECR..."
+    docker.withRegistry(
+        "${env.ECR_REGISTRY_URL}",
+        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
+    ) {
 
-        aws ecr get-login-password --region ${env.AWS_REGION} | \
-        docker login \
-        --username AWS \
-        --password-stdin ${env.ECR_REGISTRY}
-
-        echo "Pushing database image..."
-
-        docker push \
-        ${env.ECR_REGISTRY}/${DATABASE_IMAGE}:${env.GIT_COMMIT}
-    """
+        image.push()
+    }
 }
 
 // =================================================================
 // FUNCTION 2 - PROMOTE DATABASE IMAGE
 // =================================================================
 
-ddef promoteImage(String sourceImage, String targetImage) {
+def promoteImage(String sourceImage, String targetImage) {
 
     // =============================================================
-    // Login to ECR
+    // Pull source database image from ECR
     // =============================================================
 
-    sh """
-        echo "Logging into Amazon ECR..."
+    docker.withRegistry(
+        "${env.ECR_REGISTRY_URL}",
+        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
+    ) {
 
-        aws ecr get-login-password --region ${env.AWS_REGION} | \
-        docker login \
-        --username AWS \
-        --password-stdin ${env.ECR_REGISTRY}
-    """
-
-
-    // =============================================================
-    // Pull source image from ECR
-    // =============================================================
-
-    sh """
-        echo "Pulling source image..."
-
-        docker pull \
-        ${env.ECR_REGISTRY}/${sourceImage}:${env.GIT_COMMIT}
-    """
-
+        docker.image(
+            "${env.ECR_REGISTRY}/${sourceImage}:${env.GIT_COMMIT}"
+        ).pull()
+    }
 
     // =============================================================
     // Tag source image for target environment
     // =============================================================
 
     sh """
-        echo "Tagging image..."
-
         docker tag \
         ${env.ECR_REGISTRY}/${sourceImage}:${env.GIT_COMMIT} \
         ${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}
     """
 
-
     // =============================================================
-    // Push target image to ECR
+    // Push target database image to ECR
     // =============================================================
 
-    sh """
-        echo "Pushing promoted image..."
+    docker.withRegistry(
+        "${env.ECR_REGISTRY_URL}",
+        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
+    ) {
 
-        docker push \
-        ${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}
-    """
+        docker.image(
+            "${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}"
+        ).push()
+    }
 }
