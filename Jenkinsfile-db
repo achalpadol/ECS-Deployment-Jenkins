@@ -20,6 +20,7 @@ pipeline {
 
         // Database Docker build context
         BUILD_CONTEXT = './db'
+        DATABASE_DOCKERFILE = './db/Dockerfile'
     }
 
     parameters {
@@ -172,7 +173,7 @@ def buildAndPush(String DATABASE_IMAGE, String BUILD_CONTEXT) {
 
     def image = docker.build(
         "${env.ECR_REGISTRY}/${DATABASE_IMAGE}:${env.GIT_COMMIT}",
-        "${BUILD_CONTEXT}"
+        "-f ${env.DATABASE_DOCKERFILE} ${env.BUILD_CONTEXT}"
     )
 
     docker.withRegistry(
