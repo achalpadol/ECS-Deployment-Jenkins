@@ -1,0 +1,239 @@
+pipeline {
+
+    agent any
+
+    environment {
+
+        AWS_REGION = 'ap-south-1'
+        AWS_ACCOUNT_ID = credentials('aws-account-id')
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECR_REGISTRY_URL = "https://${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+
+        // App-1 images
+        APP_IMAGE_DEV  = 'app-1-proxy-dev'
+        APP_IMAGE_QA   = 'app-1-proxy-qa'
+        APP_IMAGE_UAT  = 'app-1-proxy-uat'
+        APP_IMAGE_PROD = 'app-1-proxy-prod'
+
+
+        AWS_CREDENTIALS = 'aws-ecr-credentials'
+
+
+        // Docker build context
+        BUILD_CONTEXT = './proxy'
+    }
+
+
+    parameters {
+
+        choice(
+            name: 'Environment',
+            choices: ['dev', 'qa', 'uat', 'prod'],
+            description: 'Select the deployment environment'
+        )
+    }
+
+
+    stages {
+
+
+        // =========================================================
+        // DEV
+        // =========================================================
+
+        stage('Dev - Build & Push') {
+
+            when {
+                expression {
+                    params.Environment == 'dev'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    buildAndPush(
+                        "${env.APP_IMAGE_DEV}",
+                        "${env.BUILD_CONTEXT}"
+                    )
+                }
+            }
+        }
+
+
+        // =========================================================
+        // QA
+        // =========================================================
+
+        stage('Promote Dev to QA') {
+
+            when {
+                expression {
+                    params.Environment == 'qa'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    promoteImage(
+                        "${env.APP_IMAGE_DEV}",
+                        "${env.APP_IMAGE_QA}"
+                    )
+                }
+            }
+        }
+
+
+        // =========================================================
+        // UAT
+        // =========================================================
+
+        stage('Promote QA to UAT') {
+
+            when {
+                expression {
+                    params.Environment == 'uat'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    promoteImage(
+                        "${env.APP_IMAGE_QA}",
+                        "${env.APP_IMAGE_UAT}"
+                    )
+                }
+            }
+        }
+
+
+        // =========================================================
+        // PROD APPROVAL
+        // =========================================================
+
+        stage('Approval for Prod Deployment') {
+
+            when {
+                expression {
+                    params.Environment == 'prod'
+                }
+            }
+
+            steps {
+
+                input(
+                    message: 'Promote UAT image to PROD?',
+                    ok: 'Proceed'
+                )
+            }
+        }
+
+
+        // =========================================================
+        // PROD
+        // =========================================================
+
+        stage('Promote UAT to PROD') {
+
+            when {
+                expression {
+                    params.Environment == 'prod'
+                }
+            }
+
+            steps {
+
+                script {
+
+                    promoteImage(
+                        "${env.APP_IMAGE_UAT}",
+                        "${env.APP_IMAGE_PROD}"
+                    )
+                }
+            }
+        }
+    }
+
+
+    // =============================================================
+    // POST
+    // =============================================================
+
+    post {
+
+        always {
+
+            deleteDir()
+        }
+    }
+}
+
+
+// =================================================================
+// FUNCTION 1 - BUILD AND PUSH
+// =================================================================
+
+def buildAndPush(String APP_IMAGE, String BUILD_CONTEXT) {
+
+    def image = docker.build(
+        "${env.ECR_REGISTRY}/${APP_IMAGE}:${env.GIT_COMMIT}",
+        "${BUILD_CONTEXT}"
+    )
+
+
+    docker.withRegistry(
+        "${env.ECR_REGISTRY_URL}",
+        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
+    ) {
+
+        image.push()
+    }
+}
+
+
+// =================================================================
+// FUNCTION 2 - PROMOTE IMAGE
+// =================================================================
+
+def promoteImage(String sourceImage, String targetImage) {
+
+    // Pull source image from ECR
+
+    docker.withRegistry(
+        "${env.ECR_REGISTRY_URL}",
+        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
+    ) {
+
+        docker.image(
+            "${env.ECR_REGISTRY}/${sourceImage}:${env.GIT_COMMIT}"
+        ).pull()
+    }
+
+
+    // Tag source image with target environment name
+
+    sh """
+        docker tag \
+        ${env.ECR_REGISTRY}/${sourceImage}:${env.GIT_COMMIT} \
+        ${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}
+    """
+
+
+    // Push target image to ECR
+
+    docker.withRegistry(
+        "${env.ECR_REGISTRY_URL}",
+        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
+    ) {
+
+        docker.image(
+            "${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}"
+        ).push()
+    }
+}
