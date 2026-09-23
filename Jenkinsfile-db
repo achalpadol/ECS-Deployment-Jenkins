@@ -172,7 +172,7 @@ pipeline {
 def buildAndPush(String DATABASE_IMAGE, String BUILD_CONTEXT) {
     echo "DATABASE_IMAGE = ${DATABASE_IMAGE}"
     echo "BUILD_CONTEXT = ${BUILD_CONTEXT}"
-    
+
     def image = docker.build(
         "${env.ECR_REGISTRY}/${DATABASE_IMAGE}:${env.GIT_COMMIT}",
         "-f ${env.DATABASE_DOCKERFILE} ${BUILD_CONTEXT}"
@@ -180,7 +180,7 @@ def buildAndPush(String DATABASE_IMAGE, String BUILD_CONTEXT) {
 
     docker.withRegistry(
         "${env.ECR_REGISTRY_URL}",
-        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
+        "${env.AWS_CREDENTIALS}"
     ) {
 
         image.push()
@@ -199,7 +199,7 @@ def promoteImage(String sourceImage, String targetImage) {
 
     docker.withRegistry(
         "${env.ECR_REGISTRY_URL}",
-        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
+        "${env.AWS_CREDENTIALS}"
     ) {
 
         docker.image(
@@ -223,7 +223,7 @@ def promoteImage(String sourceImage, String targetImage) {
 
     docker.withRegistry(
         "${env.ECR_REGISTRY_URL}",
-        "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
+        ":${env.AWS_CREDENTIALS}"
     ) {
 
         docker.image(
