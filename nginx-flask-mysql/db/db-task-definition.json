@@ -1,0 +1,55 @@
+{
+  
+  "containerDefinitions": [
+    {
+      "name": "Main",
+      "image": "552940445807.dkr.ecr.ap-south-1.amazonaws.com/app-2-db-${ENV}:${COMMITID}",
+      "cpu": 0,
+      "portMappings": [
+        {
+          "containerPort": 3306,
+          "hostPort": 3306,
+          "protocol": "tcp",
+          "name": "main-3306-tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "MYSQL_DATABASE",
+          "value": "example"
+        },
+        {
+          "name": "MYSQL_ROOT_PASSWORD",
+          "value": "rootpassword"
+        }
+      ],
+      "environmentFiles": [],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "ulimits": [],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/db-task-app2",
+          "awslogs-create-group": "true",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        },
+        "secretOptions": []
+      },
+      "systemControls": []
+    }
+  ],
+  "family": "db-task-app2",
+  "taskRoleArn": "arn:aws:iam::552940445807:role/ecsTaskExecutionRole",
+  "executionRoleArn": "arn:aws:iam::552940445807:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "1024",
+  "memory": "3072"
+  
+}
