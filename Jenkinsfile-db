@@ -19,8 +19,8 @@ pipeline {
         AWS_CREDENTIALS = 'aws-credentials'
 
         // Database Docker build context
-        BUILD_CONTEXT = './db'
-        DATABASE_DOCKERFILE = './db/Dockerfile'
+        BUILD_CONTEXT = './nginx-flask-mysql/db'
+        DATABASE_DOCKERFILE = './nginx-flask-mysql/db/Dockerfile'
     }
 
     parameters {
