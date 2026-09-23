@@ -165,20 +165,32 @@ pipeline {
         }
     }
 
-    stages {
+    stage('Deploy DB') {
 
-        stage('Deploy Backend') {
-            steps {
-                script {
-                    deployToECS(
-                        'backend-task-definition.json',
-                        'app1-backend',
-                        'app1-backend-service'
-                    )
-                }
+    steps {
+
+        script {
+
+            def dbService
+
+            if (params.Environment == 'dev') {
+                dbService = 
             }
-        }
-    }
+            else if (params.Environment == 'qa') {
+                dbService = 
+            }
+            else if (params.Environment == 'uat') {
+                dbService = 'db-task-app2-service-qa'
+            }
+            else if (params.Environment == 'prod') {
+                dbService = 'db-task-app2-service-dev'
+            }
+
+            deployToECS(
+                'proxy-definition.json',
+                'frontend-task-app-2'
+                dbService
+            )
 }
 
 

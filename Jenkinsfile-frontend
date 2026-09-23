@@ -174,8 +174,8 @@ pipeline {
             steps {
                 script {
                     deployToECS(
-                        'frontend-task-definition.json',
-                        'app1-frontend',
+                        'proxy-definition.json',
+                        'frontend-task-app-2'
                         'app1-frontend-service'
                     )
                 }

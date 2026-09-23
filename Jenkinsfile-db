@@ -172,16 +172,16 @@ pipeline {
             def dbService
 
             if (params.Environment == 'dev') {
-                dbService = 'app2-db-dev'
+                dbService = 'db-task-app2-service-dev'
             }
             else if (params.Environment == 'qa') {
-                dbService = 'app2-db-qa'
+                dbService = 'db-task-app2-service-uat'
             }
             else if (params.Environment == 'uat') {
-                dbService = 'app2-db-uat'
+                dbService = 'db-task-app2-service-qa'
             }
             else if (params.Environment == 'prod') {
-                dbService = 'app2-db-prod'
+                dbService = 'db-task-app2-service-dev'
             }
 
             deployToECS(
@@ -257,7 +257,7 @@ def promoteImage(String sourceImage, String targetImage) {
             "${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}"
         ).push()
     }
-
+}
     
 // TAsk definition function
 
