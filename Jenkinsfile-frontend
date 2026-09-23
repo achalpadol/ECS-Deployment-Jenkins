@@ -236,4 +236,58 @@ def promoteImage(String sourceImage, String targetImage) {
             "${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}"
         ).push()
     }
+
+    stages {
+
+        stage('Deploy Frontend') {
+            steps {
+                script {
+                    deployToECS(
+                        'frontend-task-definition.json',
+                        'app1-frontend',
+                        'app1-frontend-service'
+                    )
+                }
+            }
+        }
+    }
 }
+
+     // =============================================================
+    // TASK definition function
+    // =============================================================
+def deployToECS(String taskDefinitionFile, String taskFamily, String ecsService) {
+
+    def environment = params.Environment
+    def commitId = env.GIT_COMMIT
+    def region = env.AWS_REGION
+    def cluster = env.ECS_CLUSTER
+
+    // Replace placeholders
+    sh """
+        sed -i 's/\\\${ENV}/${environment}/g' ${taskDefinitionFile}
+        sed -i 's/\\\${COMMIT_ID}/${commitId}/g' ${taskDefinitionFile}
+    """
+
+    // Register ECS task definition
+    def taskRevision = sh(
+        script: """
+            aws ecs register-task-definition \
+                --cli-input-json file://${taskDefinitionFile} \
+                --region ${region} \
+                --query 'taskDefinition.revision' \
+                --output text
+        """,
+        returnStdout: true
+    ).trim()
+
+    // Update ECS service
+    sh """
+        aws ecs update-service \
+            --cluster ${cluster} \
+            --service ${ecsService} \
+            --task-definition ${taskFamily}:${taskRevision} \
+            --region ${region}
+    """
+}
+

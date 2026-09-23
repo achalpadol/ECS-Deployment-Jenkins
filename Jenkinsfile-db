@@ -229,20 +229,35 @@ def promoteImage(String sourceImage, String targetImage) {
         ).push()
     }
 
-    stages {
+    stage('Deploy DB') {
 
-        stage('Deploy DB') {
-            steps {
-                script {
-                    deployToECS(
-                        'db-task-definition.json',
-                        'app1-db',
-                        'app1-db-service'
-                    )
-                }
+    steps {
+
+        script {
+
+            def dbService
+
+            if (params.Environment == 'dev') {
+                dbService = 'app2-db-dev'
             }
+            else if (params.Environment == 'qa') {
+                dbService = 'app2-db-qa'
+            }
+            else if (params.Environment == 'uat') {
+                dbService = 'app2-db-uat'
+            }
+            else if (params.Environment == 'prod') {
+                dbService = 'app2-db-prod'
+            }
+
+            deployToECS(
+                'db-task-definition.json',
+                'db-task-app2',
+                dbService
+            )
         }
     }
+}
 }
 
 
