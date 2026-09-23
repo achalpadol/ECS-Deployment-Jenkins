@@ -228,9 +228,8 @@ def promoteImage(String sourceImage, String targetImage) {
             "${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}"
         ).push()
     }
-}
 
-stages {
+    stages {
 
         stage('Deploy DB') {
             steps {
@@ -244,6 +243,9 @@ stages {
             }
         }
     }
+}
+
+
 def deployToECS(String taskDefinitionFile, String taskFamily, String ecsService) {
 
     def environment = params.Environment
