@@ -17,7 +17,7 @@ pipeline {
         APP_IMAGE_PROD = 'app-1-proxy-prod'
 
 
-        AWS_CREDENTIALS = 'aws-ecr-credentials'
+        AWS_CREDENTIALS = 'aws-credentials''
 
 
         // Docker build context
