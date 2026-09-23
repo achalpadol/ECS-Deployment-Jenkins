@@ -1,0 +1,45 @@
+{
+  "name": "Main",
+  "image": "552940445807.dkr.ecr.ap-south-1.amazonaws.com/app-2-backend-${ENV}:${COMMITID}",
+  "cpu": 0,
+  "portMappings": [
+    {
+      "containerPort": 8080,
+      "hostPort": 8080,
+      "protocol": "tcp",
+      "name": "main-8080-tcp",
+      "appProtocol": "http"
+    }
+  ],
+  "essential": true,
+  "environment": [
+    {
+      "name": "MYSQL_HOST",
+      "value": "app1-db"
+    },
+    {
+      "name": "MYSQL_DATABASE",
+      "value": "example"
+    },
+    {
+      "name": "MYSQL_USER",
+      "value": "root"
+    }
+  ],
+  "environmentFiles": [],
+  "mountPoints": [],
+  "volumesFrom": [],
+  "ulimits": [],
+  "logConfiguration": {
+    "logDriver": "awslogs",
+    "options": {
+      "awslogs-group": "/ecs/backend-task-app2",
+      "awslogs-create-group": "true",
+      "awslogs-region": "ap-south-1",
+      "awslogs-stream-prefix": "ecs"
+    },
+    "secretOptions": []
+  },
+  "systemControls": []
+}
+
