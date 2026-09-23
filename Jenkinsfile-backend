@@ -164,6 +164,21 @@ pipeline {
             deleteDir()
         }
     }
+
+    stages {
+
+        stage('Deploy Backend') {
+            steps {
+                script {
+                    deployToECS(
+                        'backend-task-definition.json',
+                        'app1-backend',
+                        'app1-backend-service'
+                    )
+                }
+            }
+        }
+    }
 }
 
 
@@ -232,20 +247,7 @@ def promoteImage(String sourceImage, String targetImage) {
         ).push()
     }
 
-    stages {
-
-        stage('Deploy Backend') {
-            steps {
-                script {
-                    deployToECS(
-                        'backend-task-definition.json',
-                        'app1-backend',
-                        'app1-backend-service'
-                    )
-                }
-            }
-        }
-    }
+    
 }
 
      // =============================================================

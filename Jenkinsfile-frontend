@@ -167,6 +167,21 @@ pipeline {
             deleteDir()
         }
     }
+
+    stages {
+
+        stage('Deploy Frontend') {
+            steps {
+                script {
+                    deployToECS(
+                        'frontend-task-definition.json',
+                        'app1-frontend',
+                        'app1-frontend-service'
+                    )
+                }
+            }
+        }
+    }
 }
 
 
@@ -237,20 +252,6 @@ def promoteImage(String sourceImage, String targetImage) {
         ).push()
     }
 
-    stages {
-
-        stage('Deploy Frontend') {
-            steps {
-                script {
-                    deployToECS(
-                        'frontend-task-definition.json',
-                        'app1-frontend',
-                        'app1-frontend-service'
-                    )
-                }
-            }
-        }
-    }
 }
 
      // =============================================================
