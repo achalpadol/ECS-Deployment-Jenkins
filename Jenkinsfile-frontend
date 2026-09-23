@@ -14,10 +14,10 @@ pipeline {
         // App-1 images
         // =========================================================
 
-        APP_IMAGE_DEV  = 'app-1-proxy-dev'
-        APP_IMAGE_QA   = 'app-1-proxy-qa'
-        APP_IMAGE_UAT  = 'app-1-proxy-uat'
-        APP_IMAGE_PROD = 'app-1-proxy-prod'
+        APP_IMAGE_DEV  = 'app-2-proxy-dev'
+        APP_IMAGE_QA   = 'app-2-proxy-qa'
+        APP_IMAGE_UAT  = 'app-2-proxy-uat'
+        APP_IMAGE_PROD = 'app-2-proxy-prod'
 
         // AWS credentials
         AWS_CREDENTIALS = 'aws-credentials'
