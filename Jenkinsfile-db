@@ -1,17 +1,10 @@
 pipeline {
-
     agent any
-
     environment {
-
         AWS_REGION = 'ap-south-1'
-
         AWS_ACCOUNT_ID = credentials('aws-account-id')
-
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-
         ECR_REGISTRY_URL = "https://${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-
 
         // =========================================================
         // Database images
@@ -22,15 +15,12 @@ pipeline {
         DATABASE_IMAGE_UAT  = 'app-2-db-uat'
         DATABASE_IMAGE_PROD = 'app-2-db-prod'
 
-
         // AWS credentials
         AWS_CREDENTIALS = 'aws-credentials'
-
 
         // Database Docker build context
         BUILD_CONTEXT = './db'
     }
-
 
     parameters {
 
@@ -40,7 +30,6 @@ pipeline {
             description: 'Select the deployment environment'
         )
     }
-
 
     stages {
 
@@ -68,7 +57,6 @@ pipeline {
             }
         }
 
-
         // =========================================================
         // QA
         // =========================================================
@@ -92,7 +80,6 @@ pipeline {
                 }
             }
         }
-
 
         // =========================================================
         // UAT
@@ -118,7 +105,6 @@ pipeline {
             }
         }
 
-
         // =========================================================
         // PROD APPROVAL
         // =========================================================
@@ -139,7 +125,6 @@ pipeline {
                 )
             }
         }
-
 
         // =========================================================
         // PROD
@@ -166,7 +151,6 @@ pipeline {
         }
     }
 
-
     // =============================================================
     // POST
     // =============================================================
@@ -180,7 +164,6 @@ pipeline {
     }
 }
 
-
 // =================================================================
 // FUNCTION 1 - BUILD AND PUSH DATABASE IMAGE
 // =================================================================
@@ -192,7 +175,6 @@ def buildAndPush(String DATABASE_IMAGE, String BUILD_CONTEXT) {
         "${BUILD_CONTEXT}"
     )
 
-
     docker.withRegistry(
         "${env.ECR_REGISTRY_URL}",
         "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
@@ -201,7 +183,6 @@ def buildAndPush(String DATABASE_IMAGE, String BUILD_CONTEXT) {
         image.push()
     }
 }
-
 
 // =================================================================
 // FUNCTION 2 - PROMOTE DATABASE IMAGE
@@ -223,7 +204,6 @@ def promoteImage(String sourceImage, String targetImage) {
         ).pull()
     }
 
-
     // =============================================================
     // Tag source image for target environment
     // =============================================================
@@ -233,7 +213,6 @@ def promoteImage(String sourceImage, String targetImage) {
         ${env.ECR_REGISTRY}/${sourceImage}:${env.GIT_COMMIT} \
         ${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}
     """
-
 
     // =============================================================
     // Push target database image to ECR
