@@ -2,28 +2,30 @@ pipeline {
 
     agent any
 
-    environment {}
+    environment {
 
         AWS_REGION = 'ap-south-1'
         AWS_ACCOUNT_ID = credentials('aws-account-id')
+
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         ECR_REGISTRY_URL = "https://${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-
+        // =========================================================
         // App-1 images
+        // =========================================================
+
         APP_IMAGE_DEV  = 'app-1-proxy-dev'
         APP_IMAGE_QA   = 'app-1-proxy-qa'
         APP_IMAGE_UAT  = 'app-1-proxy-uat'
         APP_IMAGE_PROD = 'app-1-proxy-prod'
 
-
-        AWS_CREDENTIALS = 'aws-credentials''
-
+        // AWS credentials
+        AWS_CREDENTIALS = 'aws-credentials'
 
         // Docker build context
-        BUILD_CONTEXT = './proxy'
+        BUILD_CONTEXT    = './nginx-flask-mysql/proxy'
+        PROXY_DOCKERFILE = './nginx-flask-mysql/proxy/Dockerfile'
     }
-
 
     parameters {
 
@@ -34,9 +36,7 @@ pipeline {
         )
     }
 
-
     stages {
-
 
         // =========================================================
         // DEV
@@ -62,7 +62,6 @@ pipeline {
             }
         }
 
-
         // =========================================================
         // QA
         // =========================================================
@@ -86,7 +85,6 @@ pipeline {
                 }
             }
         }
-
 
         // =========================================================
         // UAT
@@ -112,7 +110,6 @@ pipeline {
             }
         }
 
-
         // =========================================================
         // PROD APPROVAL
         // =========================================================
@@ -133,7 +130,6 @@ pipeline {
                 )
             }
         }
-
 
         // =========================================================
         // PROD
@@ -160,7 +156,6 @@ pipeline {
         }
     }
 
-
     // =============================================================
     // POST
     // =============================================================
@@ -186,7 +181,6 @@ def buildAndPush(String APP_IMAGE, String BUILD_CONTEXT) {
         "${BUILD_CONTEXT}"
     )
 
-
     docker.withRegistry(
         "${env.ECR_REGISTRY_URL}",
         "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
@@ -203,7 +197,9 @@ def buildAndPush(String APP_IMAGE, String BUILD_CONTEXT) {
 
 def promoteImage(String sourceImage, String targetImage) {
 
+    // =============================================================
     // Pull source image from ECR
+    // =============================================================
 
     docker.withRegistry(
         "${env.ECR_REGISTRY_URL}",
@@ -216,7 +212,9 @@ def promoteImage(String sourceImage, String targetImage) {
     }
 
 
-    // Tag source image with target environment name
+    // =============================================================
+    // Tag source image with target environment
+    // =============================================================
 
     sh """
         docker tag \
@@ -225,7 +223,9 @@ def promoteImage(String sourceImage, String targetImage) {
     """
 
 
+    // =============================================================
     // Push target image to ECR
+    // =============================================================
 
     docker.withRegistry(
         "${env.ECR_REGISTRY_URL}",
