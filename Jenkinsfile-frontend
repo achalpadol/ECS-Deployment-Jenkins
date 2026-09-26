@@ -67,6 +67,11 @@ pipeline {
         // =========================================================
 
         stage('Promote Dev to QA') {
+            when {
+                expression {
+                    params.Environment == 'qa'
+                }
+            }
 
             steps {
 
@@ -85,6 +90,11 @@ pipeline {
         // =========================================================
 
         stage('Promote QA to UAT') {
+            when {
+                expression {
+                    params.Environment == 'uat'
+                }
+            }
 
             steps {
 
@@ -124,6 +134,11 @@ pipeline {
         // =========================================================
 
         stage('Promote UAT to PROD') {
+            when {
+                expression {
+                    params.Environment == 'prod'
+                }
+            }
 
             steps {
 
