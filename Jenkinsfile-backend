@@ -151,7 +151,22 @@ pipeline {
                 }
             }
         }
-    }
+    }   
+        stage('Deploy DB') {
+
+            steps {
+
+                script {
+
+
+                deployToECS(
+                    'proxy-definition.json',
+                    'frontend-task-app-2'
+                    'backend-service-dev'
+                )
+            }
+        }
+    }   
 
     // =============================================================
     // POST
@@ -165,32 +180,7 @@ pipeline {
         }
     }
 
-    stage('Deploy DB') {
-
-    steps {
-
-        script {
-
-            def backendService
-
-            if (params.Environment == 'dev') {
-                backendService = 'backend-service-dev'
-            }
-            else if (params.Environment == 'qa') {
-                backendService = 'backend-service-qa'
-            }
-            else if (params.Environment == 'uat') {
-                backendService = 'backend-service-uat'
-            }
-            else if (params.Environment == 'prod') {
-                backendService = 'backend-service-prod'
-            }
-
-            deployToECS(
-                'proxy-definition.json',
-                'frontend-task-app-2'
-                backendService
-            )
+    
 }
 
 
@@ -294,7 +284,7 @@ def deployToECS(String taskDefinitionFile, String taskFamily, String ecsService)
     sh """
         aws ecs update-service \
             --cluster ${cluster} \
-            --service ${backendService} \
+            --service ${backend-service-dev} \
             --task-definition ${taskFamily}:${taskRevision} \
             --region ${region}
     """

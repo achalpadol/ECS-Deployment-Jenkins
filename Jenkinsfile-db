@@ -151,6 +151,20 @@ pipeline {
             }
         }
     }
+        stage('Deploy DB') {
+
+            steps {
+
+                script {
+
+                    deployToECS(
+                        'db-task-definition.json',
+                        'db-task-app2',
+                        'db-task-app2-service-dev'
+                    )
+                }
+            }
+        }
 
     // =============================================================
     // POST
@@ -163,35 +177,7 @@ pipeline {
             deleteDir()
         }
     }
-    stage('Deploy DB') {
-
-    steps {
-
-        script {
-
-            def dbService
-
-            if (params.Environment == 'dev') {
-                dbService = 'db-task-app2-service-dev'
-            }
-            else if (params.Environment == 'qa') {
-                dbService = 'db-task-app2-service-uat'
-            }
-            else if (params.Environment == 'uat') {
-                dbService = 'db-task-app2-service-qa'
-            }
-            else if (params.Environment == 'prod') {
-                dbService = 'db-task-app2-service-dev'
-            }
-
-            deployToECS(
-                'db-task-definition.json',
-                'db-task-app2',
-                dbService
-            )
-        }
-    }
-}
+    
 }
 
 // =================================================================

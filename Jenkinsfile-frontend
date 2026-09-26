@@ -136,6 +136,47 @@ pipeline {
                 }
             }
         }
+
+        // =========================================================
+        // DEPLOY FRONTEND
+        // =========================================================
+
+        stage('Deploy frontend') {
+
+            steps {
+
+                script {
+
+                    //def proxyService
+
+                    //if (params.Environment == 'dev') {
+
+                        //proxyService = 'proxy-task-service-dev'
+
+                   // }
+                    //else if (params.Environment == 'qa') {
+
+                        //proxyService = 'proxy-task-service-uat'
+
+                    //}
+                   // else if (params.Environment == 'uat') {
+
+                       // proxyService = 'proxy-task-service-qa'
+
+                    //}
+                    //else if (params.Environment == 'prod') {
+
+                        //proxyService = 'proxy-task-service-prod'
+                    //}
+
+                    deployToECS(
+                        'db-task-definition.json',
+                        'db-task-app2',
+                        'frontend-service'
+                    )
+                }
+            }
+        }
     }
 
     // =============================================================
@@ -147,35 +188,6 @@ pipeline {
         always {
 
             deleteDir()
-        }
-    }
-
-   stage('Deploy frontend') {
-
-    steps {
-
-        script {
-
-            def proxyService
-
-            if (params.Environment == 'dev') {
-                proxyService = 'proxy-task-service-dev'
-            }
-            else if (params.Environment == 'qa') {
-                proxyService = 'proxy-task-service-uat'
-            }
-            else if (params.Environment == 'uat') {
-                proxyService = 'proxy-task-service-qa'
-            }
-            else if (params.Environment == 'prod') {
-                proxyService = 'proxy-task-service-prod'
-            }
-
-            deployToECS(
-                'db-task-definition.json',
-                'db-task-app2',
-                proxyService
-            )
         }
     }
 }
@@ -228,8 +240,8 @@ def promoteImage(String sourceImage, String targetImage) {
     // =============================================================
 
     sh """
-        docker tag \
-        ${env.ECR_REGISTRY}/${sourceImage}:${env.GIT_COMMIT} \
+        docker tag \\
+        ${env.ECR_REGISTRY}/${sourceImage}:${env.GIT_COMMIT} \\
         ${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}
     """
 
@@ -247,13 +259,18 @@ def promoteImage(String sourceImage, String targetImage) {
             "${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}"
         ).push()
     }
-
 }
 
-     // =============================================================
-    // TASK definition function
-    // =============================================================
-def deployToECS(String taskDefinitionFile, String taskFamily, String ecsService) {
+
+// =================================================================
+// TASK DEFINITION FUNCTION
+// =================================================================
+
+def deployToECS(
+    String taskDefinitionFile,
+    String taskFamily,
+    String ecsService
+) {
 
     def environment = params.Environment
     def commitId = env.GIT_COMMIT
@@ -261,30 +278,38 @@ def deployToECS(String taskDefinitionFile, String taskFamily, String ecsService)
     def cluster = env.ECS_CLUSTER
 
     // Replace placeholders
+
     sh """
         sed -i 's/\\\${ENV}/${environment}/g' ${taskDefinitionFile}
         sed -i 's/\\\${COMMIT_ID}/${commitId}/g' ${taskDefinitionFile}
     """
 
+
+    // =============================================================
     // Register ECS task definition
+    // =============================================================
+
     def taskRevision = sh(
         script: """
-            aws ecs register-task-definition \
-                --cli-input-json file://${taskDefinitionFile} \
-                --region ${region} \
-                --query 'taskDefinition.revision' \
+            aws ecs register-task-definition \\
+                --cli-input-json file://${taskDefinitionFile} \\
+                --region ${region} \\
+                --query 'taskDefinition.revision' \\
                 --output text
         """,
         returnStdout: true
     ).trim()
 
+
+    // =============================================================
     // Update ECS service
+    // =============================================================
+
     sh """
-        aws ecs update-service \
-            --cluster ${cluster} \
-            --service ${proxyService} \
-            --task-definition ${taskFamily}:${taskRevision} \
+        aws ecs update-service \\
+            --cluster ${cluster} \\
+            --service ${frontend-service} \\
+            --task-definition ${taskFamily}:${taskRevision} \\
             --region ${region}
     """
 }
-
