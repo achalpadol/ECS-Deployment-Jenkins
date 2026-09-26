@@ -9,6 +9,7 @@ pipeline {
 
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         ECR_REGISTRY_URL = "https://${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        ECS_CLUSTER = 'employee-cluster'
 
         // =========================================================
         // App-1 images
