@@ -185,7 +185,7 @@ pipeline {
                     //}
 
                     deployToECS(
-                        'proxy-task-definition.json',
+                        './nginx-flask-mysql/proxy/proxy-task-definition.json',
                         'frontend-task-definition',
                         'frontend-service'
                     )
@@ -323,7 +323,7 @@ def deployToECS(
     sh """
         aws ecs update-service \\
             --cluster ${cluster} \\
-            --service ${frontend-service} \\
+            --service ${ecsService} \\
             --task-definition ${taskFamily}:${taskRevision} \\
             --region ${region}
     """
