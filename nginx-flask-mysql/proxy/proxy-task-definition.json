@@ -3,7 +3,7 @@
   "containerDefinitions": [
     {
       "name": "Main",
-      "image": "552940445807.dkr.ecr.ap-south-1.amazonaws.com/app-2-proxy-nginx-flask-mysql/db/db-task-definition.json",
+      "image": "552940445807.dkr.ecr.ap-south-1.amazonaws.com/app-2-proxy-${ENV}:${COMMITID}",
       "cpu": 0,
       "portMappings": [
         {
