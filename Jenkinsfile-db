@@ -290,7 +290,7 @@ def deployToECS(String taskDefinitionFile, String taskFamily, String ecsService)
     sh """
         aws ecs update-service \
             --cluster ${cluster} \
-            --service ${ecsService} \
+            --service ${dbService} \
             --task-definition ${taskFamily}:${taskRevision} \
             --region ${region}
     """

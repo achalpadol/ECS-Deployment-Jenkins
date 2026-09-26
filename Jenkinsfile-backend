@@ -171,25 +171,25 @@ pipeline {
 
         script {
 
-            def dbService
+            def backendService
 
             if (params.Environment == 'dev') {
-                dbService = 
+                backendService = 'backend-service-dev'
             }
             else if (params.Environment == 'qa') {
-                dbService = 
+                backendService = 'backend-service-qa'
             }
             else if (params.Environment == 'uat') {
-                dbService = 'db-task-app2-service-qa'
+                backendService = 'backend-service-uat'
             }
             else if (params.Environment == 'prod') {
-                dbService = 'db-task-app2-service-dev'
+                backendService = 'backend-service-prod'
             }
 
             deployToECS(
                 'proxy-definition.json',
                 'frontend-task-app-2'
-                dbService
+                backendService
             )
 }
 
@@ -294,7 +294,7 @@ def deployToECS(String taskDefinitionFile, String taskFamily, String ecsService)
     sh """
         aws ecs update-service \
             --cluster ${cluster} \
-            --service ${ecsService} \
+            --service ${backendService} \
             --task-definition ${taskFamily}:${taskRevision} \
             --region ${region}
     """

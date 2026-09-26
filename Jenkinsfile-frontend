@@ -68,12 +68,6 @@ pipeline {
 
         stage('Promote Dev to QA') {
 
-            when {
-                expression {
-                    params.Environment == 'qa'
-                }
-            }
-
             steps {
 
                 script {
@@ -91,12 +85,6 @@ pipeline {
         // =========================================================
 
         stage('Promote QA to UAT') {
-
-            when {
-                expression {
-                    params.Environment == 'uat'
-                }
-            }
 
             steps {
 
@@ -137,12 +125,6 @@ pipeline {
 
         stage('Promote UAT to PROD') {
 
-            when {
-                expression {
-                    params.Environment == 'prod'
-                }
-            }
-
             steps {
 
                 script {
@@ -168,18 +150,32 @@ pipeline {
         }
     }
 
-    stages {
+   stage('Deploy frontend') {
 
-        stage('Deploy Frontend') {
-            steps {
-                script {
-                    deployToECS(
-                        'proxy-definition.json',
-                        'frontend-task-app-2'
-                        'app1-frontend-service'
-                    )
-                }
+    steps {
+
+        script {
+
+            def proxyService
+
+            if (params.Environment == 'dev') {
+                proxyService = 'proxy-task-service-dev'
             }
+            else if (params.Environment == 'qa') {
+                proxyService = 'proxy-task-service-uat'
+            }
+            else if (params.Environment == 'uat') {
+                proxyService = 'proxy-task-service-qa'
+            }
+            else if (params.Environment == 'prod') {
+                proxyService = 'proxy-task-service-prod'
+            }
+
+            deployToECS(
+                'db-task-definition.json',
+                'db-task-app2',
+                proxyService
+            )
         }
     }
 }
@@ -286,7 +282,7 @@ def deployToECS(String taskDefinitionFile, String taskFamily, String ecsService)
     sh """
         aws ecs update-service \
             --cluster ${cluster} \
-            --service ${ecsService} \
+            --service ${proxyService} \
             --task-definition ${taskFamily}:${taskRevision} \
             --region ${region}
     """
