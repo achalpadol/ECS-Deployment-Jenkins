@@ -3,7 +3,7 @@
   "containerDefinitions": [
     {
       "name": "Main",
-      "image": "552940445807.dkr.ecr.ap-south-1.amazonaws.com/app-2-proxy-${ENV}:${COMMITID}",
+      "image": "552940445807.dkr.ecr.ap-south-1.amazonaws.com/app-2-proxy-${ENV}:${COMMIT_ID}",
       "cpu": 0,
       "portMappings": [
         {
@@ -42,6 +42,6 @@
     "FARGATE"
   ],
   "cpu": "1024",
-  "memory": "3072",
+  "memory": "3072"
   
 }
