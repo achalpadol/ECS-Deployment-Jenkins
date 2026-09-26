@@ -186,8 +186,8 @@ pipeline {
 
                     deployToECS(
                         './nginx-flask-mysql/proxy/proxy-task-definition.json',
-                        'frontend-task-definition',
-                        'frontend-service'
+                        'proxy-task-definition',
+                        'proxy-service-dev'
                     )
                 }
             }
