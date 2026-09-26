@@ -185,8 +185,8 @@ pipeline {
                     //}
 
                     deployToECS(
-                        'db-task-definition.json',
-                        'db-task-app2',
+                        'proxy-task-definition.json',
+                        'frontend-task-definition',
                         'frontend-service'
                     )
                 }

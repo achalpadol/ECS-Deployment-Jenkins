@@ -160,8 +160,8 @@ pipeline {
 
 
                 deployToECS(
-                    'proxy-definition.json',
-                    'frontend-task-app-2'
+                    'backend-task-definition.json',
+                    'backend-task-definition'
                     'backend-service-dev'
                 )
             }
