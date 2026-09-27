@@ -1,10 +1,14 @@
+
 pipeline {
     agent any
+
     environment {
         AWS_REGION = 'ap-south-1'
         AWS_ACCOUNT_ID = credentials('aws-account-id')
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
         ECR_REGISTRY_URL = "https://${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+        ECS_CLUSTER = 'employee-cluster'
 
         // =========================================================
         // Backend images
@@ -82,7 +86,6 @@ pipeline {
             }
         }
 
-
         // =========================================================
         // UAT
         // =========================================================
@@ -151,22 +154,26 @@ pipeline {
                 }
             }
         }
-    }   
+
+        // =========================================================
+        // DEPLOY BACKEND TO ECS
+        // =========================================================
+
         stage('Deploy DB') {
 
             steps {
 
                 script {
 
-
-                deployToECS(
-                    'backend-task-definition.json',
-                    'backend-task-definition'
-                    'backend-service-dev'
-                )
+                    deployToECS(
+                        'backend-task-definition.json',
+                        'backend-task-definition',
+                        'backend-service-dev'
+                    )
+                }
             }
         }
-    }   
+    }
 
     // =============================================================
     // POST
@@ -179,8 +186,6 @@ pipeline {
             deleteDir()
         }
     }
-
-    
 }
 
 
@@ -195,7 +200,6 @@ def buildAndPush(String BACKEND_IMAGE, String BUILD_CONTEXT) {
         "${BUILD_CONTEXT}"
     )
 
-
     docker.withRegistry(
         "${env.ECR_REGISTRY_URL}",
         "ecr:${env.AWS_REGION}:${env.AWS_CREDENTIALS}"
@@ -204,6 +208,7 @@ def buildAndPush(String BACKEND_IMAGE, String BUILD_CONTEXT) {
         image.push()
     }
 }
+
 
 // =================================================================
 // FUNCTION 2 - PROMOTE BACKEND IMAGE
@@ -248,27 +253,29 @@ def promoteImage(String sourceImage, String targetImage) {
             "${env.ECR_REGISTRY}/${targetImage}:${env.GIT_COMMIT}"
         ).push()
     }
-
-    
 }
 
-     // =============================================================
-    // TASK definition function
-    // =============================================================
+
+// =================================================================
+// TASK DEFINITION FUNCTION
+// =================================================================
+
 def deployToECS(String taskDefinitionFile, String taskFamily, String ecsService) {
 
     def environment = params.Environment
-    def commitId = env.GIT_COMMIT
-    def region = env.AWS_REGION
-    def cluster = env.ECS_CLUSTER
+    def commitId    = env.GIT_COMMIT
+    def region      = env.AWS_REGION
+    def cluster     = env.ECS_CLUSTER
 
     // Replace placeholders
+
     sh """
         sed -i 's/\\\${ENV}/${environment}/g' ${taskDefinitionFile}
         sed -i 's/\\\${COMMIT_ID}/${commitId}/g' ${taskDefinitionFile}
     """
 
     // Register ECS task definition
+
     def taskRevision = sh(
         script: """
             aws ecs register-task-definition \
@@ -281,10 +288,11 @@ def deployToECS(String taskDefinitionFile, String taskFamily, String ecsService)
     ).trim()
 
     // Update ECS service
+
     sh """
         aws ecs update-service \
             --cluster ${cluster} \
-            --service ${backend-service-dev} \
+            --service ${ecsService} \
             --task-definition ${taskFamily}:${taskRevision} \
             --region ${region}
     """

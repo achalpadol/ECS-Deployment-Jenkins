@@ -55,7 +55,7 @@ def listBlog():
             database=os.getenv('MYSQL_DATABASE', 'example'),
             host=os.getenv('MYSQL_HOST'),
             user=os.getenv('MYSQL_USER', 'root'),
-            password=os.getenv('DB_PASSWORD')
+            password=os.getenv('MYSQL_ROOT_PASSWORD')
         )
 
         conn.populate_db()

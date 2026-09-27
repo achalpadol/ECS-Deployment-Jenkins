@@ -15,7 +15,7 @@
   "environment": [
     {
       "name": "MYSQL_HOST",
-      "value": "app1-db"
+      "value": "app1-db.ecs.employee.local"
     },
     {
       "name": "MYSQL_DATABASE",
@@ -24,7 +24,12 @@
     {
       "name": "MYSQL_USER",
       "value": "root"
+    },
+    {
+      "name": "MYSQL_ROOT_PASSWORD",
+      "value": "rootpassword"
     }
+
   ],
   "environmentFiles": [],
   "mountPoints": [],
