@@ -166,7 +166,7 @@ pipeline {
                 script {
 
                     deployToECS(
-                        'backend-task-definition.json',
+                        './nginx-flask-mysql/backend/backend-task-definition.json',
                         'backend-task-definition',
                         'backend-service-dev'
                     )
